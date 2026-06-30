@@ -113,10 +113,7 @@ export default function ConsoleSidebar({
 
               <button className="w-full text-left pl-7 pr-4 py-1.5 text-slate-500 hover:text-slate-950 hover:bg-slate-50">块存储</button>
               <button className="w-full text-left pl-7 pr-4 py-1.5 text-slate-500 hover:text-slate-950 hover:bg-slate-50">专网</button>
-              <button className="w-full text-[#fa541c] font-bold text-left pl-7 pr-4 py-1.5 hover:bg-slate-50 flex items-center space-x-1.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#fa541c]" />
-                <span>公网</span>
-              </button>
+              <button className="w-full text-left pl-7 pr-4 py-1.5 text-slate-500 hover:text-slate-950 hover:bg-slate-50">公网</button>
               <button className="w-full text-left pl-7 pr-4 py-1.5 text-slate-500 hover:text-slate-950 hover:bg-slate-50">交换机</button>
             </div>
           )}
