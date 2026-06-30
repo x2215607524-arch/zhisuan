@@ -1,0 +1,6 @@
+{
+  "name": "对象存储控制台",
+  "description": "智算云对象存储服务（ZOS）控制台系统，支持基础资源管理、数据安全与权限控制、以及数据生命周期及多版本等高级自动化管理功能。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
