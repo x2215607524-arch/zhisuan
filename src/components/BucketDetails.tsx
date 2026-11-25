@@ -100,6 +100,24 @@ export default function BucketDetails({
 
   // Multipart uploads state
   const [showMultipartSim, setShowMultipartSim] = useState(false);
+  const [fragments, setFragments] = useState<{ id: string; name: string; parts: number; size: number; createdAt: string }[]>([]);
+  const [fragmentQuery, setFragmentQuery] = useState('');
+  const [selectedFragments, setSelectedFragments] = useState<string[]>([]);
+  useEffect(() => {
+    setFragments(JSON.parse(localStorage.getItem(`zos_fragments_${bucket.name}`) || '[]'));
+    setSelectedFragments([]);
+    setFragmentQuery('');
+  }, [bucket.name]);
+  const filteredFragments = fragments.filter(fragment => fragment.name.includes(fragmentQuery));
+  const deleteFragments = (ids: string[], clearAll = false) => {
+    if (!ids.length) { triggerToast('桶内暂无碎片'); return; }
+    if (!confirm(clearAll ? '确认清空桶内所有碎片？此操作不可恢复。' : `确认删除选中的 ${ids.length} 项文件碎片？此操作不可恢复。`)) return;
+    const next = fragments.filter(fragment => !ids.includes(fragment.id));
+    localStorage.setItem(`zos_fragments_${bucket.name}`, JSON.stringify(next));
+    setFragments(next);
+    setSelectedFragments(selectedFragments.filter(id => !ids.includes(id)));
+    triggerToast(clearAll ? '已清空桶内碎片' : '已删除所选碎片');
+  };
   const [multipartProgress, setMultipartProgress] = useState(0);
   const [multipartStatus, setMultipartStatus] = useState<'idle' | 'uploading' | 'paused' | 'completed'>('idle');
 
@@ -2517,96 +2535,45 @@ export default function BucketDetails({
               </div>
             )}
 
-            {/* Tab: Multipart concurrently concurrent upload task manager */}
             {activeTab === 'multipart' && (
-              <div className="space-y-6">
-                <div className="bg-white p-5 rounded-lg border border-slate-200 space-y-4">
-                  <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-                    <Code className="h-5 w-5 text-blue-600" />
-                    <h3 className="text-xs font-bold text-slate-900">大文件分段并发合并引擎 (ZOS S3 Concurrent Multipart Engine)</h3>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <button disabled={!selectedFragments.length} onClick={() => deleteFragments(selectedFragments)} className={`px-4 py-1.5 rounded text-xs font-semibold shadow-sm h-8 border ${selectedFragments.length ? 'bg-white hover:bg-slate-50 text-red-600 border-slate-300 cursor-pointer' : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'}`}>删除</button>
+                    <button onClick={() => deleteFragments(fragments.map(fragment => fragment.id), true)} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-1.5 rounded text-xs font-semibold shadow-sm h-8 cursor-pointer">清空桶内碎片</button>
                   </div>
-                  
-                  <p className="text-xs text-slate-500 leading-relaxed max-w-4xl">
-                    存储桶分段上传允许上传体积超过 5GB 的超大型文件归档包（如数 TB 的数据库冷备或科研星云扫描映像）。
-                    每个分段是一个独立的文件块（Chunk），由 ZOS 多线程高并发异步推入云端，在块全部推入后执行原子级别一键瞬间物理分片合并，任何错误都可发起断点续传。
-                  </p>
-
-                  <div className="bg-slate-50 p-4 border border-slate-150 rounded-lg max-w-3xl">
-                    {multipartStatus === 'idle' ? (
-                      <div className="space-y-3">
-                        <span className="text-slate-700 block text-xs font-bold">🛠️ 触发生成 48.5GB 超大归档分段模拟上传？</span>
-                        <p className="text-[10.5px] text-slate-400">系统将自动把大包预划分为多达 9700 个并发节点（分片大小 5MB），支持中断重续。</p>
-                        <button
-                          onClick={handleBeginMultipartSimulation}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-md transition-all cursor-pointer text-xs flex items-center space-x-1.5 shadow"
-                        >
-                          <Play className="h-3.5 w-3.5 fill-white" />
-                          <span>启动高并发分段上传 & 自动极速合并</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 font-mono">
-                        <div className="flex items-center justify-between text-xs select-none">
-                          <div className="flex items-center space-x-2 text-slate-700 font-bold font-sans">
-                            <span className="h-2 w-2 rounded-full bg-blue-600 animate-ping"></span>
-                            <span>高并发物理片传送中 (Active Chunk Multiplexing)</span>
-                          </div>
-                          <span className="font-bold">合并进度: {multipartProgress}%</span>
-                        </div>
-                        <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                          <div className="bg-blue-600 h-full transition-all" style={{ width: `${multipartProgress}%` }}></div>
-                        </div>
-                        <p className="text-[10px] text-slate-450 leading-relaxed font-sans mt-1">分段哈希核准校验 (OSD Node Block Verification)...</p>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <input value={fragmentQuery} onChange={e => setFragmentQuery(e.target.value)} placeholder="请输入文件名称" className="bg-white border border-slate-300 rounded-sm pl-2.5 pr-8 py-1.5 text-slate-800 text-xs focus:outline-none focus:border-blue-500 w-[240px] h-8 font-sans" />
+                      <svg className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    </div>
+                    <button title="刷新" onClick={() => { setFragments(JSON.parse(localStorage.getItem(`zos_fragments_${bucket.name}`) || '[]')); setSelectedFragments([]); triggerToast('已刷新碎片列表'); }} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 p-1.5 rounded-sm flex items-center justify-center cursor-pointer shadow-sm h-8 w-8"><RotateCw className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
-
-                {/* Multipart Task list table */}
-                <div className="bg-white p-5 rounded-lg border border-slate-200">
-                  <h3 className="text-xs font-bold text-slate-900 mb-3 uppercase tracking-wide">存储桶当前分段物理碎片任务链 (Active tasks)</h3>
-                  <table className="w-full text-left text-xs border-collapse text-slate-650">
-                    <thead>
-                      <tr className="bg-slate-50 font-bold text-[10px] border-b border-slate-200 text-slate-500 uppercase">
-                        <th className="py-2.5 px-3">任务 ID (UploadId)</th>
-                        <th className="py-2.5">文件对象名</th>
-                        <th className="py-2.5">分段数 (Parts)</th>
-                        <th className="py-2.5">设计总容量</th>
-                        <th className="py-2.5">传输进度</th>
-                        <th className="py-2.5 text-center">状态</th>
-                        <th className="py-2.5 text-center">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                      <tr>
-                        <td className="py-3 px-3 font-bold text-slate-800">mp-task-809dfbce</td>
-                        <td className="font-sans text-slate-700 font-semibold">db_idealcloud_cold_backup_2026.zip</td>
-                        <td className="text-slate-500">9,700 个分片</td>
-                        <td className="text-slate-500">48.5 GB</td>
-                        <td className="font-bold text-emerald-600">100% (已物理物理合并)</td>
-                        <td className="text-center">
-                          <span className="bg-green-50 text-emerald-600 border border-green-200 px-1.5 py-0.5 rounded font-sans font-bold text-[10px]">已入库</span>
-                        </td>
-                        <td className="text-center select-none">
-                          <span className="text-slate-400 font-sans">物理合并完毕</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-3 px-3 font-bold text-slate-800">mp-task-f9cf10e8</td>
-                        <td className="font-sans text-slate-700">highway_surveillance_record.mp4</td>
-                        <td className="text-slate-500">2,480 个分片</td>
-                        <td className="text-slate-550">12.4 GB</td>
-                        <td className="text-blue-600 font-bold">45% 传输中</td>
-                        <td className="text-center">
-                          <span className="bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded font-sans font-bold text-[10px]">并发流中</span>
-                        </td>
-                        <td className="text-center select-none font-sans space-x-2">
-                          <button onClick={() => triggerToast('文件分片传输已暂停，保留上传断点')} className="text-xs text-blue-600 hover:underline">暂停</button>
-                          <button onClick={() => triggerToast('已彻底物理删除并释放此碎片的暂占容量')} className="text-xs text-red-600 hover:underline">废弃碎片</button>
-                        </td>
-                      </tr>
+                <div className="bg-white border border-slate-200 rounded overflow-x-auto shadow-sm">
+                  <table className="w-full min-w-[680px] text-left text-xs border-collapse font-sans table-fixed">
+                    <thead><tr className="bg-[#f5f7fa] text-slate-600 border-b border-slate-200 font-semibold h-10">
+                      <th className="py-2.5 pl-4 w-12 text-center"><input aria-label="全选碎片" type="checkbox" disabled={!filteredFragments.length} checked={filteredFragments.length > 0 && filteredFragments.every(fragment => selectedFragments.includes(fragment.id))} onChange={e => setSelectedFragments(e.target.checked ? [...new Set([...selectedFragments, ...filteredFragments.map(fragment => fragment.id)])] : selectedFragments.filter(id => !filteredFragments.some(fragment => fragment.id === id)))} className="rounded border-slate-300 text-blue-600 h-3.5 w-3.5" /></th>
+                      <th className="py-2.5 pl-2 font-medium w-[30%]">文件名称</th>
+                      <th className="py-2.5 font-medium">文件碎片数量</th>
+                      <th className="py-2.5 font-medium">碎片大小</th>
+                      <th className="py-2.5 font-medium w-[22%]">创建时间</th>
+                      <th className="py-2.5 pl-4 font-medium w-24">操作</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-slate-150 text-slate-700">
+                      {!filteredFragments.length ? <tr><td colSpan={6} className="py-8 text-center text-slate-400">暂无数据</td></tr> : filteredFragments.map(fragment => (
+                        <tr key={fragment.id} className="hover:bg-slate-50/50">
+                          <td className="py-3 pl-4 text-center"><input aria-label={`选择 ${fragment.name}`} type="checkbox" checked={selectedFragments.includes(fragment.id)} onChange={e => setSelectedFragments(e.target.checked ? [...selectedFragments, fragment.id] : selectedFragments.filter(id => id !== fragment.id))} className="rounded border-slate-300 text-blue-600 h-3.5 w-3.5" /></td>
+                          <td className="py-3 pl-2 truncate" title={fragment.name}>{fragment.name}</td><td>{fragment.parts}</td><td>{(fragment.size / 1024 / 1024).toFixed(2)} MB</td><td>{fragment.createdAt}</td>
+                          <td className="pl-4"><button onClick={() => deleteFragments([fragment.id])} className="text-blue-600 hover:underline cursor-pointer">删除</button></td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
+                </div>
+                <div className="flex justify-end items-center gap-4 text-slate-400">
+                  <button disabled aria-label="上一页" className="p-1 disabled:cursor-not-allowed"><ChevronRight className="h-4 w-4 rotate-180" /></button>
+                  <button disabled aria-label="下一页" className="p-1 disabled:cursor-not-allowed"><ChevronRight className="h-4 w-4" /></button>
                 </div>
               </div>
             )}
